@@ -1,7 +1,7 @@
 Fecha_emision;Numero;Codigo_articulo;Articulo;Presentacion;Precio_UNitario_con_iva;;;
-18/3/2025;1313;17;"Alambre Negro nº 16 x kg";Kilos;2.691,17;;;
-18/3/2025;1313;18;"Alambre Negro nº 9 x kg";Kilos;2.943,96;;;
-17/3/2025;1311;33;"Arena x m3";metro 3;10.540,44;;;
+18/3/2025;1313;17;Alambre Negro nº 16 x kg;Kilos;2.691,17;;;
+18/3/2025;1313;18;Alambre Negro nº 9 x kg;Kilos;2.943,96;;;
+17/3/2025;1311;33;Arena x m3;metro 3;10.540,44;;;
 17/3/2025;1311;213;Flete;Unidad;24.876,92;;;
 17/3/2025;1312;116;"Cemento Normal x 50 kg";Unidad;10.820,42;;;
 14/3/2025;1306;107;"Caño Galva p/ Agua 2 1/2 x 6,40 mts";Unidad;225.250,00;;;
