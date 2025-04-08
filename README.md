@@ -14,4 +14,6 @@ https://drive.google.com/drive/folders/1EcTgw08ussZNxYfjqXkwbjsxhlTI9PW5?usp=dri
 
 * TransfManual_CalendarLaboral: Transformaciones de los datos cargados manuelamente y calendario de días laborales (en función de las lluvias y los feriados)  
 
-* Variaciones_MesBase: Combinación de las tablas de variación sobre mes base, transformadas en cada archivo y combinadas en este Excel.
+* Variaciones_MesBase: Combinación de las tablas de variación sobre mes base, transformadas en cada archivo y combinadas en este Excel.  
+
+* Muestra compras: precios de compras modificados (para mantener seguridad interna). Sólo para modelo PBIX de muestra.

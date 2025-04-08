@@ -1,0 +1,108 @@
+let
+    Origen = Csv.Document(Web.Contents("https://drive.google.com/uc?export=download&id=1-1D8TNw0XkeihBda0ptiwbeO7ta7j54l"),[Delimiter=";", Columns=32, Encoding=65001, QuoteStyle=QuoteStyle.None]),
+    #"Encabezados promovidos" = Table.PromoteHeaders(Origen, [PromoteAllScalars=true]),
+    #"Tipo cambiado" = Table.TransformColumnTypes(#"Encabezados promovidos",{{"Fecha_emision", type date}, {"Numero", Int64.Type}, {"Codigo_articulo", Int64.Type}, {"Articulo", type text}, {"Presentacion", type text}, {"Precio_UNitario_con_iva", type number}}),
+    #"Otras columnas quitadas" = Table.SelectColumns(#"Tipo cambiado",{"Fecha_emision", "Numero", "Codigo_articulo", "Articulo", "Presentacion", "Precio_UNitario_con_iva"}),
+    #"Columnas con nombre cambiado" = Table.RenameColumns(#"Otras columnas quitadas",{{"Fecha_emision", "Fecha"}}),
+    #"Personalizada agregada" = Table.AddColumn(#"Columnas con nombre cambiado", "Mes", each Date.StartOfMonth([Fecha])),
+    #"Tipo cambiado1" = Table.TransformColumnTypes(#"Personalizada agregada",{{"Mes", type date}}),
+    #"Consultas combinadas" = Table.NestedJoin(#"Tipo cambiado1", {"Mes"}, CAC, {"Mes"}, "CAC", JoinKind.LeftOuter),
+    #"Consultas combinadas1" = Table.NestedJoin(#"Consultas combinadas", {"Fecha"}, DOLAR, {"date"}, "DOLAR", JoinKind.LeftOuter),
+    #"Consultas combinadas2" = Table.NestedJoin(#"Consultas combinadas1", {"Fecha"}, UVI, {"date"}, "UVI", JoinKind.LeftOuter),
+    #"Se expandió CAC" = Table.ExpandTableColumn(#"Consultas combinadas2", "CAC", {"General", "Materiales"}, {"CAC.General", "CAC.Materiales"}),
+    #"Se expandió DOLAR" = Table.ExpandTableColumn(#"Se expandió CAC", "DOLAR", {"Dolar_Blue", "Dolar_Oficial"}, {"DOLAR.Dolar_Blue", "DOLAR.Dolar_Oficial"}),
+    #"Se expandió UVI" = Table.ExpandTableColumn(#"Se expandió DOLAR", "UVI", {"valor_UVI"}, {"UVI.valor_UVI"}),
+    #"Cambio nombres" = Table.RenameColumns(#"Se expandió UVI",{{"CAC.General", "CAC Gral"}, {"CAC.Materiales", "CAC Mat"}, {"DOLAR.Dolar_Blue", "USD Blue"}, {"DOLAR.Dolar_Oficial", "USD Oficial"}, {"UVI.valor_UVI", "UVI"}}),
+    #"Orden por fecha" = Table.Sort(#"Cambio nombres",{{"Fecha", Order.Descending}}),
+    #"Completar valores null" = Table.FillUp(#"Orden por fecha",{"CAC Gral", "CAC Mat", "USD Blue", "USD Oficial", "UVI"}),
+    #"Columnas con nombre cambiado2" = Table.RenameColumns(#"Completar valores null",{{"Codigo_articulo", "ID Artículo"}}),
+    #"Consultas combinadas3" = Table.NestedJoin(#"Columnas con nombre cambiado2", {"ID Artículo"}, KgBarraHierros, {"ID_Articulo"}, "KgBarraHierros", JoinKind.LeftOuter),
+    #"Se expandió KgBarraHierros" = Table.ExpandTableColumn(#"Consultas combinadas3", "KgBarraHierros", {"Kg_x_barra"}, {"Kg_x_barra"}),
+    #"Precio hierros por kilo" = Table.AddColumn(#"Se expandió KgBarraHierros", "Precio unitario Kg", each if List.Contains({296, 297, 298, 299, 300, 302, 303, 1696}, [ID Artículo]) and [Kg_x_barra] <> null 
+  then [Precio_UNitario_con_iva] / [Kg_x_barra] 
+  else [Precio_UNitario_con_iva]),
+   #"Personalizada agregada1" = Table.AddColumn(#"Precio hierros por kilo", "Articulo KG", each if List.Contains({296, 297, 298, 299, 300, 302, 303}, [ID Artículo]) 
+  then "Barras de Hierro x kg" 
+  else [Articulo]),
+    #"Quito Columna Artciulo" = Table.RemoveColumns(#"Personalizada agregada1",{"Articulo"}),
+    #"Renombro ArtKg x Articulo" = Table.RenameColumns(#"Quito Columna Artciulo",{{"Articulo KG", "Articulo"}, {"Precio unitario Kg", "Precio de compra"}}),
+      UltimoUVI = List.First(#"Renombro ArtKg x Articulo"[UVI]),
+      UltimoCACgral = List.First(#"Renombro ArtKg x Articulo"[CAC Gral]),
+      UltimoCACmat = List.First(#"Renombro ArtKg x Articulo"[CAC Mat]),
+      UltimoUSDblue = List.First(#"Renombro ArtKg x Articulo"[USD Blue]),
+      UltimoUSDoficial = List.First(#"Renombro ArtKg x Articulo"[USD Oficial]),
+    #"Precio UVI" = Table.AddColumn(#"Renombro ArtKg x Articulo", "Precio ARSxUVI", each [Precio de compra] / [UVI] * UltimoUVI),
+    #"Precio CAC Gral" = Table.AddColumn(#"Precio UVI", "Precio ARSxCAC Gral", each [Precio de compra] / [CAC Gral] * UltimoCACgral),
+    #"Precio CAC Mat" = Table.AddColumn(#"Precio CAC Gral", "Precio ARSxCAC Mat", each [Precio de compra] / [CAC Mat] * UltimoCACmat),
+    #"Precio USD Blue" = Table.AddColumn(#"Precio CAC Mat", "Precio ARSxUSD Blue", each [Precio de compra] / [USD Blue] * UltimoUSDblue),
+    #"Precio USD Oficial" = Table.AddColumn(#"Precio USD Blue", "Precio ARSxUSD Oficial", each [Precio de compra] / [USD Oficial] * UltimoUSDoficial),
+    #"Precio en UVI" = Table.AddColumn(#"Precio USD Oficial", "Precio en UVI", each [Precio de compra] / [UVI]),
+    #"Precio en CAC Gral" = Table.AddColumn(#"Precio en UVI", "Precio en CAC Gral", each [Precio de compra] / [CAC Gral]),
+    #"Precio en CAC Mat" = Table.AddColumn(#"Precio en CAC Gral", "Precio en CAC Mat", each [Precio de compra] / [CAC Mat]),
+    #"Precio en USD Blue" = Table.AddColumn(#"Precio en CAC Mat", "Precio en USD Blue", each [Precio de compra] / [USD Blue]),
+    #"Precio en USD Oficial" = Table.AddColumn(#"Precio en USD Blue", "Precio en USD Oficial", each [Precio de compra] / [USD Oficial]),
+    #"Elimino columnas índices" = Table.RemoveColumns(#"Precio en USD Oficial",{"CAC Gral", "CAC Mat", "USD Blue", "USD Oficial", "UVI"}),
+    #"Tipo cambiado2" = Table.TransformColumnTypes(#"Elimino columnas índices",{{"Precio ARSxUSD Oficial", type number}, {"Precio ARSxUSD Blue", type number}, {"Precio ARSxCAC Mat", type number}, {"Precio ARSxCAC Gral", type number}, {"Precio ARSxUVI", type number}, {"Precio en USD Oficial", type number}, {"Precio en USD Blue", type number}, {"Precio en CAC Mat", type number}, {"Precio en CAC Gral", type number}, {"Precio en UVI", type number}}),
+    #"Filas filtradas1" = Table.SelectRows(#"Tipo cambiado2", each
+        [ID Artículo] = 58 or // HCCA 60x20x25
+        [ID Artículo] = 88 or // Cal
+        [ID Artículo] = 110 or // PVC 110
+        [ID Artículo] = 115 or // Cemento Alb
+        [ID Artículo] = 116 or // Cemento
+        [ID Artículo] = 202 or // Fenólico
+        [ID Artículo] = 223 or // Caño fusión 25
+        [ID Artículo] = 234 or // LLP 20
+        [ID Artículo] = 235 or // LLP 25
+        [ID Artículo] = 295 or // Hidrófugo 200
+        [ID Artículo] = 296 or // Hierro 10
+        [ID Artículo] = 297 or // Hierro 12
+        [ID Artículo] = 298 or // Hierro 26
+        [ID Artículo] = 299 or // Hierro 20
+        [ID Artículo] = 300 or // Hierro 25
+        [ID Artículo] = 302 or // Hierro 6
+        [ID Artículo] = 303 or // Hierro 8
+        [ID Artículo] = 307 or // H21
+        [ID Artículo] = 309 or // RDC
+        [ID Artículo] = 318 or // Ladrillo 8
+        [ID Artículo] = 319 or // Ladrillo 18
+        [ID Artículo] = 320 or // Ladrillo común
+        [ID Artículo] = 367 or // Malla SIMA 8
+        [ID Artículo] = 419 or // Montante durlock 34x35
+        [ID Artículo] = 442 or // Pegamento Porcelanato
+        [ID Artículo] = 774 or // Tubo luz 20
+        [ID Artículo] = 780 or // Válcula inodoro
+        [ID Artículo] = 815 or // Yeso proyectable x20
+        [ID Artículo] = 971 or // H8
+        [ID Artículo] = 1229 or // Caño gas 40
+        [ID Artículo] = 1855 or // Baldosa 40x40 3.6
+        [ID Artículo] = 1873 or // Caño cobre 1/4
+        [ID Artículo] = 1875 or // Cable sub. 3x2.5
+        [ID Artículo] = 1912 // Piso porcelanato madera
+        ),
+    #"Filas agrupadas" = Table.Group(#"Filas filtradas1", {"Mes", "Articulo"}, {{"Pecio en AR$", each List.Average([Precio de compra]), type number}, {"Precio AR$xUVI", each List.Average([Precio ARSxUVI]), type nullable number}, {"Precio AR$xCAC Gral", each List.Average([Precio ARSxCAC Gral]), type nullable number}, {"Precio AR$xCAC Mat", each List.Average([Precio ARSxCAC Mat]), type nullable number}, {"Precio AR$xU$D Blue", each List.Average([Precio ARSxUSD Blue]), type nullable number}, {"Precio AR$xU$D Oficial", each List.Average([Precio ARSxUSD Oficial]), type nullable number}, {"Precio en UVI", each List.Average([Precio en UVI]), type nullable number}, {"Precio en U$D Blue", each List.Average([Precio en USD Blue]), type nullable number}, {"Precio en U$D Oficial", each List.Average([Precio en USD Oficial]), type nullable number}, {"Precio en CAC Gral", each List.Average([Precio en CAC Gral]), type nullable number}, {"Precio en CAC Mat", each List.Average([Precio en CAC Mat]), type nullable number}}),
+    #"Valor reemplazado" = Table.ReplaceValue(#"Filas agrupadas","Ladrillo Ceramico 18 x 18 x 33 cm x un","Ladrillo Ceramico 18cm",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado1" = Table.ReplaceValue(#"Valor reemplazado","Ladrillo Ceramico 12 x 18 x 33 cm x un","Ladrillo Ceramico 12cm",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado2" = Table.ReplaceValue(#"Valor reemplazado1","Bloque Brimax de HCCA 60x20x25","Bloque HCCA 60x20x25",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado3" = Table.ReplaceValue(#"Valor reemplazado2","Bloque Brimax de HCCA 60x20x20","Bloque HCCA 60x20x20",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado4" = Table.ReplaceValue(#"Valor reemplazado3","Pegamento p/ Porcelanato x 30 kg","Pegamento Porcelanatos",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado5" = Table.ReplaceValue(#"Valor reemplazado4","Ladrillo Comun x un","Ladrillo común",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado6" = Table.ReplaceValue(#"Valor reemplazado5","Caño PVC Ø110 x 3,2 x 4mts","Caño PVC Ø110",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado7" = Table.ReplaceValue(#"Valor reemplazado6","Cemento Albañilería x 40 kg","Cemento de Albañilería",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado8" = Table.ReplaceValue(#"Valor reemplazado7","Cemento Normal x 50 kg","Cemento Normal x 50kg",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado9" = Table.ReplaceValue(#"Valor reemplazado8","Fusion Caño Ø25mm x 4 mts","Caño Agua Fusión Ø25",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado10" = Table.ReplaceValue(#"Valor reemplazado9","Fusion Llave de Paso Ø20mm","Llave de Pago Agua Ø20",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado11" = Table.ReplaceValue(#"Valor reemplazado10","Fusion Llave de Paso Ø25mm","Llave de Pago Agua Ø25",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado12" = Table.ReplaceValue(#"Valor reemplazado11","Hormigon H8 x m3","Hormigón H8",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado13" = Table.ReplaceValue(#"Valor reemplazado12","Cal Hidratada x 25 kg","Cal Hidratada x 25kg",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado14" = Table.ReplaceValue(#"Valor reemplazado13","Tubo PVC p/ Luz Semi Pesado 20mm x 3mts","Tubo Eléctrico PVC Ø20",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado15" = Table.ReplaceValue(#"Valor reemplazado14","Fenolico Industrial 1,22 x 2,44 mts x un","Fenólico Industrial",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado16" = Table.ReplaceValue(#"Valor reemplazado15","Ladrillo Ceramico 8 x 18 x 33 cm x un","Ladrillo Cerámico 8cm",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado17" = Table.ReplaceValue(#"Valor reemplazado16","Piso Porcelanato Mate Simil Madera 22x160 x m2","Porcelanato simil Madera",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado18" = Table.ReplaceValue(#"Valor reemplazado17","Cable Subterraneo 3 x 2.5 mm","Cable Subterráneo",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado19" = Table.ReplaceValue(#"Valor reemplazado18","Caño Cobre 1/4 x mts (15 mts =1,92kg)","Caño Cobre p/ Aire Ac.",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado20" = Table.ReplaceValue(#"Valor reemplazado19","Malla Sima Soldada Ø8mm 2,40 x 6,00 mts 15 x15","Malla SIMA Ø8",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado21" = Table.ReplaceValue(#"Valor reemplazado20","Montante Galva 34x35x2600mm x un","Montante Durlock",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado22" = Table.ReplaceValue(#"Valor reemplazado21","Piso Adoquin Recto 64 P 40 x 40 36 mm","Baldosa granítica 40x40",Replacer.ReplaceText,{"Articulo"}),
+    #"Valor reemplazado23" = Table.ReplaceValue(#"Valor reemplazado22","Valvula Descarga Inodoro 1 1/2"" x 1 1/4"" 38mm x 32mm x un","Válula de Inodoro",Replacer.ReplaceText,{"Articulo"})
+in
+    #"Valor reemplazado23"
