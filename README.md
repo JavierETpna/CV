@@ -2,7 +2,7 @@
 Archivos de muestra para Currículum Vitae  
 
 Link a los archivos XLSX para Base de datos del Reporte en Power Bi:  
-https://drive.google.com/drive/folders/1EcTgw08ussZNxYfjqXkwbjsxhlTI9PW5?usp=drive_link  
+https://github.com/JavierETpna/Variables_Compartidas  
 
 * BCRA_Transformaciones: orígenes de las API del BCRA y las transformaciones correspondientes (medias mensuales, variaciones desde mes base, etc).  
 
